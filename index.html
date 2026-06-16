@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>词卡 · Cíkǎ</title>
+<meta name="theme-color" content="#c1402a">
+<meta name="description" content="Look up Chinese words and build flashcards — pinyin, hanzi, English.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cíkǎ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f3ede1;
+    --paper-2:#ece4d4;
+    --ink:#211e1a;
+    --ink-soft:#5c554a;
+    --cinnabar:#c1402a;
+    --cinnabar-deep:#9e3320;
+    --jade:#3f6b5a;
+    --line:#d8cdb8;
+    --card:#fbf7ee;
+    --shadow:rgba(40,32,20,.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:'Spectral',Georgia,serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #f7f2e8 0%, var(--paper) 45%, var(--paper-2) 100%);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;flex-direction:column;
+    overflow-x:hidden;
+  }
+  /* faint paper grain */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  header{
+    position:relative;z-index:1;
+    padding:26px 22px 14px;
+    display:flex;align-items:baseline;gap:14px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{font-family:'Noto Serif SC',serif;font-weight:900;font-size:30px;letter-spacing:2px;color:var(--cinnabar)}
+  .brand-en{font-size:13px;letter-spacing:.32em;text-transform:uppercase;color:var(--ink-soft)}
+  .brand-en small{display:block;letter-spacing:.1em;text-transform:none;font-style:italic;font-size:12px;opacity:.8}
+
+  nav{
+    position:relative;z-index:1;
+    display:flex;gap:4px;padding:12px 16px 0;
+  }
+  nav button{
+    flex:1;background:none;border:none;cursor:pointer;
+    font-family:'Spectral',serif;font-size:14px;letter-spacing:.06em;
+    color:var(--ink-soft);padding:10px 8px;border-bottom:2px solid transparent;
+    transition:color .2s,border-color .2s;
+  }
+  nav button .zh{font-family:'Noto Serif SC',serif;font-weight:600;margin-right:5px}
+  nav button.active{color:var(--cinnabar);border-color:var(--cinnabar)}
+  nav button .badge{
+    display:inline-block;min-width:18px;margin-left:5px;padding:0 5px;
+    font-size:11px;line-height:18px;border-radius:9px;background:var(--paper-2);color:var(--ink-soft);
+  }
+  nav button.active .badge{background:var(--cinnabar);color:#fff}
+
+  main{position:relative;z-index:1;flex:1;padding:22px 18px 40px;max-width:560px;width:100%;margin:0 auto}
+  .view{display:none;animation:rise .45s cubic-bezier(.2,.8,.2,1) both}
+  .view.active{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  /* ---- ADD VIEW ---- */
+  .lookup{display:flex;gap:8px;margin-bottom:8px}
+  .lookup input{
+    flex:1;font-family:'Noto Serif SC',serif;font-size:22px;
+    padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);color:var(--ink);outline:none;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .lookup input:focus{border-color:var(--cinnabar);box-shadow:0 0 0 3px rgba(193,64,42,.12)}
+  .lookup button{
+    border:none;border-radius:12px;cursor:pointer;padding:0 20px;
+    background:var(--cinnabar);color:#fff;font-family:'Noto Serif SC',serif;font-size:18px;font-weight:600;
+    transition:background .2s,transform .1s;
+  }
+  .lookup button:active{transform:scale(.96);background:var(--cinnabar-deep)}
+  .hint{font-size:13px;font-style:italic;color:var(--ink-soft);margin:2px 4px 22px}
+
+  .result{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:20px 20px 18px;margin-bottom:14px;position:relative;
+    box-shadow:0 10px 24px -16px var(--shadow);
+    animation:rise .35s both;
+  }
+  .result .hanzi{font-family:'Noto Serif SC',serif;font-size:46px;line-height:1.05;font-weight:600}
+  .result .variant{font-size:13px;color:var(--ink-soft);font-style:italic;margin-top:2px}
+  .result .pinyin{color:var(--cinnabar-deep);font-size:21px;font-weight:500;margin:8px 0 6px;letter-spacing:.02em}
+  .result .defs{font-size:16px;line-height:1.5;color:var(--ink)}
+  .result .defs li{margin-left:18px}
+  .result .add{
+    position:absolute;top:16px;right:16px;
+    width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+    background:var(--paper);color:var(--cinnabar);font-size:24px;cursor:pointer;
+    display:grid;place-items:center;transition:.18s;
+  }
+  .result .add:hover{background:var(--cinnabar);color:#fff;transform:rotate(90deg)}
+  .result .add.saved{background:var(--jade);color:#fff;border-color:var(--jade);transform:none;cursor:default}
+  /* tag editor inside a result / deck card */
+  .tag-edit{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  .tag-edit .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .chip{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:13px;padding:4px 10px;border-radius:20px;cursor:pointer;
+    background:var(--paper-2);color:var(--ink-soft);border:1px solid transparent;transition:.15s;
+    font-family:'Spectral',serif;
+  }
+  .chip:hover{border-color:var(--line)}
+  .chip.on{background:var(--jade);color:#fff}
+  .chip .x{font-size:14px;opacity:.7;margin-left:1px}
+  .chip-add{
+    font-size:13px;padding:4px 8px;border-radius:20px;border:1px dashed var(--line);
+    background:none;color:var(--cinnabar);cursor:pointer;font-family:'Spectral',serif;
+  }
+  .tag-input{
+    font-family:'Spectral',serif;font-size:14px;padding:5px 10px;border-radius:20px;
+    border:1px solid var(--cinnabar);background:var(--card);color:var(--ink);outline:none;width:130px;
+  }
+
+  .empty{text-align:center;color:var(--ink-soft);font-style:italic;padding:48px 20px;font-size:15px}
+  .empty .seal{
+    font-family:'Noto Serif SC',serif;font-size:42px;color:var(--cinnabar);opacity:.25;
+    border:3px solid var(--cinnabar);border-radius:10px;display:inline-block;
+    padding:6px 10px;margin-bottom:16px;font-weight:900;
+  }
+
+  /* ---- DECK VIEW ---- */
+  .deck-card{
+    display:flex;align-items:center;gap:16px;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;animation:rise .3s both;
+  }
+  .deck-card .hz{font-family:'Noto Serif SC',serif;font-size:30px;font-weight:600;min-width:0}
+  .deck-card .meta{flex:1;min-width:0}
+  .deck-card .py{color:var(--cinnabar-deep);font-size:15px;font-weight:500}
+  .deck-card .en{font-size:14px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .deck-card .en.editable{cursor:text;border-bottom:1px dotted transparent;transition:border-color .15s}
+  .deck-card .en.editable:hover{border-bottom-color:var(--line)}
+  .en-edit{flex-basis:100%;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .en-edit .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px}
+  .en-edit textarea{
+    width:100%;font-family:'Spectral',serif;font-size:15px;line-height:1.45;color:var(--ink);
+    background:var(--card);border:1px solid var(--cinnabar);border-radius:10px;padding:9px 11px;outline:none;resize:vertical;min-height:46px;
+  }
+  .en-edit .orig{font-size:13px;color:var(--ink-soft);font-style:italic;margin-top:7px;line-height:1.4}
+  .en-edit .orig b{font-style:normal;cursor:pointer;color:var(--cinnabar)}
+  .en-edit .row{display:flex;gap:8px;margin-top:9px}
+  .en-edit .row button{border:none;border-radius:9px;padding:7px 16px;font-family:'Spectral',serif;font-size:13px;cursor:pointer}
+  .en-edit .save{background:var(--jade);color:#fff}
+  .en-edit .cancel{background:var(--paper-2);color:var(--ink-soft)}
+  .deck-card .del{background:none;border:none;color:var(--ink-soft);font-size:18px;cursor:pointer;opacity:.5;padding:6px}
+  .deck-card .del:hover{opacity:1;color:var(--cinnabar)}
+  .deck-card{flex-wrap:wrap}
+  .deck-card .tag-row{flex-basis:100%;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .deck-card .card-tag{font-size:11px;padding:2px 8px;border-radius:12px;background:var(--paper-2);color:var(--ink-soft);margin-right:5px}
+  /* filter / selector bar shared by Deck and Study */
+  .filter-bar{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px;align-items:center}
+  .filter-bar .fchip{
+    font-size:13px;padding:6px 13px;border-radius:20px;cursor:pointer;
+    background:var(--card);color:var(--ink-soft);border:1px solid var(--line);transition:.15s;
+    font-family:'Spectral',serif;
+  }
+  .filter-bar .fchip.on{background:var(--cinnabar);color:#fff;border-color:var(--cinnabar)}
+  .filter-bar .fchip .n{opacity:.7;font-size:11px;margin-left:3px}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .toolbar .count{font-size:14px;color:var(--ink-soft);font-style:italic}
+  .toolbar .export{background:none;border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-family:'Spectral',serif;font-size:13px;color:var(--ink-soft);cursor:pointer}
+  .toolbar .export:hover{border-color:var(--cinnabar);color:var(--cinnabar)}
+
+  /* ---- STUDY VIEW ---- */
+  .study-wrap{display:flex;flex-direction:column;align-items:center;gap:22px;padding-top:8px}
+  .progress{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+  .flip{width:100%;max-width:380px;height:340px;perspective:1400px;cursor:pointer}
+  .flip-inner{position:relative;width:100%;height:100%;transition:transform .55s cubic-bezier(.2,.8,.2,1);transform-style:preserve-3d}
+  .flip.flipped .flip-inner{transform:rotateY(180deg)}
+  .face{
+    position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+    border-radius:20px;border:1px solid var(--line);background:var(--card);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;
+    box-shadow:0 22px 50px -30px var(--shadow);
+  }
+  .face{overflow:auto}
+  .face .corner{position:absolute;top:14px;right:16px;font-family:'Noto Serif SC';color:var(--cinnabar);opacity:.3;font-weight:900;font-size:18px}
+  .face.front .tap{font-size:13px;font-style:italic;color:var(--ink-soft)}
+  .face.back{transform:rotateY(180deg);gap:10px}
+  /* prompt (front, large) + answer (back, smaller) field sizes */
+  .big-hz{font-family:'Noto Serif SC',serif;font-size:78px;font-weight:600;line-height:1;text-align:center}
+  .big-py{color:var(--cinnabar-deep);font-size:40px;font-weight:500;text-align:center;line-height:1.2}
+  .big-en{font-size:25px;text-align:center;line-height:1.35;padding:0 4px}
+  .sm-hz{font-family:'Noto Serif SC',serif;font-size:38px;font-weight:600}
+  .sm-py{color:var(--cinnabar-deep);font-size:24px;font-weight:500;text-align:center}
+  .sm-en{font-size:17px;text-align:center;line-height:1.4;color:var(--ink)}
+  /* mode selector */
+  .mode-bar{display:flex;gap:5px;background:var(--paper-2);border-radius:13px;padding:5px;width:100%;max-width:380px}
+  .mode-bar button{flex:1;border:none;background:none;cursor:pointer;font-family:'Spectral',serif;font-size:12px;letter-spacing:.04em;color:var(--ink-soft);padding:7px 4px;border-radius:9px;transition:.18s}
+  .mode-bar button .zh{font-family:'Noto Serif SC',serif;font-weight:600;display:block;font-size:17px;color:inherit;margin-bottom:1px}
+  .mode-bar button.active{background:var(--card);color:var(--cinnabar);box-shadow:0 2px 7px -3px var(--shadow)}
+  .study-controls{display:flex;gap:12px}
+  .study-controls button{
+    border:1px solid var(--line);background:var(--card);border-radius:11px;
+    padding:11px 22px;font-family:'Spectral',serif;font-size:15px;cursor:pointer;color:var(--ink);transition:.15s;
+  }
+  .study-controls button:active{transform:scale(.96)}
+  .study-controls .again{color:var(--cinnabar)}
+  .study-controls .again:hover{background:var(--cinnabar);color:#fff;border-color:var(--cinnabar)}
+  .study-controls .good{color:var(--jade)}
+  .study-controls .good:hover{background:var(--jade);color:#fff;border-color:var(--jade)}
+</style>
+</head>
+<body>
+  <header>
+    <span class="brand">词卡</span>
+    <span class="brand-en">Cíkǎ<small>your flashcards</small></span>
+  </header>
+
+  <nav>
+    <button id="nav-add" class="active" onclick="show('add')"><span class="zh">查</span>Look up</button>
+    <button id="nav-deck" onclick="show('deck')"><span class="zh">卡</span>Deck<span class="badge" id="deck-badge">0</span></button>
+    <button id="nav-study" onclick="show('study')"><span class="zh">习</span>Study</button>
+  </nav>
+
+  <main>
+    <!-- ADD -->
+    <section id="view-add" class="view active">
+      <div class="lookup">
+        <input id="q" placeholder="粘贴一个词…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button onclick="doLookup()">查</button>
+      </div>
+      <p class="hint">Paste a word from Google Lens, then tap 查 (or Enter). Simplified or traditional both work.</p>
+      <div id="results"></div>
+    </section>
+
+    <!-- DECK -->
+    <section id="view-deck" class="view">
+      <div class="toolbar">
+        <span class="count" id="deck-count"></span>
+        <button class="export" onclick="exportDeck()">Export ⤓</button>
+      </div>
+      <div class="filter-bar" id="deck-filter"></div>
+      <div id="deck-list"></div>
+    </section>
+
+    <!-- STUDY -->
+    <section id="view-study" class="view">
+      <div id="study-body"></div>
+    </section>
+  </main>
+
+<!-- Full CC-CEDICT (124k entries). Defines window.CEDICT_RAW. Optional:
+     if this file isn't present, the app falls back to the STARTER set. -->
+<script src="cedict.js"></script>
+<script>
+/* =====================================================================
+   STORAGE  — defensive wrapper.
+   Tries localStorage (the real target on your phone/laptop). If it's
+   blocked (e.g. this in-chat preview sandbox, or private browsing),
+   it silently falls back to an in-memory store so the UI still works.
+   ===================================================================== */
+const Store = (() => {
+  const KEY = 'cika.deck.v1';
+  let mem = null;                          // in-memory fallback
+  function read(){
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+    catch { return mem || []; }
+  }
+  function write(arr){
+    mem = arr;
+    try { localStorage.setItem(KEY, JSON.stringify(arr)); } catch {}
+  }
+  return { read, write };
+})();
+
+/* =====================================================================
+   DICTIONARY  — STARTER SET (~40 words).
+   Format mirrors CC-CEDICT exactly so swapping in the full ~120k-entry
+   dictionary later is mechanical:
+     t = traditional, s = simplified, p = pinyin w/ tone numbers, d = [glosses]
+   --> NEXT STEP: replace STARTER with the parsed CC-CEDICT data and
+       keep everything below unchanged.
+   ===================================================================== */
+const STARTER = [
+  {t:"你好",s:"你好",p:"ni3 hao3",d:["hello","hi"]},
+  {t:"謝謝",s:"谢谢",p:"xie4 xie5",d:["to thank","thanks"]},
+  {t:"傳統",s:"传统",p:"chuan2 tong3",d:["tradition","traditional","conventional"]},
+  {t:"中國",s:"中国",p:"Zhong1 guo2",d:["China"]},
+  {t:"學習",s:"学习",p:"xue2 xi2",d:["to learn","to study"]},
+  {t:"中文",s:"中文",p:"Zhong1 wen2",d:["Chinese language"]},
+  {t:"喜歡",s:"喜欢",p:"xi3 huan5",d:["to like","to be fond of"]},
+  {t:"朋友",s:"朋友",p:"peng2 you5",d:["friend"]},
+  {t:"老師",s:"老师",p:"lao3 shi1",d:["teacher"]},
+  {t:"學生",s:"学生",p:"xue2 sheng5",d:["student","pupil"]},
+  {t:"水",s:"水",p:"shui3",d:["water"]},
+  {t:"茶",s:"茶",p:"cha2",d:["tea"]},
+  {t:"咖啡",s:"咖啡",p:"ka1 fei1",d:["coffee"]},
+  {t:"飯",s:"饭",p:"fan4",d:["cooked rice","meal"]},
+  {t:"吃",s:"吃",p:"chi1",d:["to eat"]},
+  {t:"喝",s:"喝",p:"he1",d:["to drink"]},
+  {t:"狗",s:"狗",p:"gou3",d:["dog"]},
+  {t:"貓",s:"猫",p:"mao1",d:["cat"]},
+  {t:"書",s:"书",p:"shu1",d:["book"]},
+  {t:"電話",s:"电话",p:"dian4 hua4",d:["telephone","phone call"]},
+  {t:"電腦",s:"电脑",p:"dian4 nao3",d:["computer"]},
+  {t:"手機",s:"手机",p:"shou3 ji1",d:["cell phone","mobile phone"]},
+  {t:"工作",s:"工作",p:"gong1 zuo4",d:["job","work","to work"]},
+  {t:"家",s:"家",p:"jia1",d:["home","family","household"]},
+  {t:"愛",s:"爱",p:"ai4",d:["to love","affection"]},
+  {t:"漂亮",s:"漂亮",p:"piao4 liang5",d:["pretty","beautiful"]},
+  {t:"高興",s:"高兴",p:"gao1 xing4",d:["happy","glad","willing to"]},
+  {t:"謝",s:"谢",p:"xie4",d:["to thank","to decline"]},
+  {t:"時間",s:"时间",p:"shi2 jian1",d:["time","period"]},
+  {t:"今天",s:"今天",p:"jin1 tian1",d:["today"]},
+  {t:"明天",s:"明天",p:"ming2 tian1",d:["tomorrow"]},
+  {t:"昨天",s:"昨天",p:"zuo2 tian1",d:["yesterday"]},
+  {t:"什麼",s:"什么",p:"shen2 me5",d:["what?","something"]},
+  {t:"怎麼",s:"怎么",p:"zen3 me5",d:["how?","why?"]},
+  {t:"為什麼",s:"为什么",p:"wei4 shen2 me5",d:["why?","for what reason?"]},
+  {t:"再見",s:"再见",p:"zai4 jian4",d:["goodbye","see you again"]},
+  {t:"對不起",s:"对不起",p:"dui4 bu5 qi3",d:["sorry","I'm sorry","excuse me"]},
+  {t:"沒關係",s:"没关系",p:"mei2 guan1 xi5",d:["it doesn't matter","never mind"]},
+  {t:"綠",s:"绿",p:"lu:4",d:["green"]},
+  {t:"女",s:"女",p:"nv3",d:["female","woman","daughter"]},
+];
+
+// Use the full dictionary if cedict.js loaded it; otherwise the STARTER set
+// (e.g. in the in-chat preview, where the external file isn't available).
+const FULL_DICT = typeof window.CEDICT_RAW === 'string' && window.CEDICT_RAW.length > 0;
+const ENTRIES = FULL_DICT
+  ? window.CEDICT_RAW.split('\n').map(line => {
+      const [t, s, p, d] = line.split('\t');
+      return { t, s, p, d: d ? d.split('\u001f') : [] };
+    })
+  : STARTER;
+
+// Index keyed by BOTH simplified and traditional forms.
+const DICT = (() => {
+  const idx = new Map();
+  for (const e of ENTRIES) {
+    for (const key of new Set([e.s, e.t])) {
+      if (!idx.has(key)) idx.set(key, []);
+      idx.get(key).push(e);
+    }
+  }
+  return idx;
+})();
+
+/* =====================================================================
+   PINYIN  — tone numbers -> diacritics (verified: 12/12 test cases).
+   ===================================================================== */
+const TONE_MARKS = {
+  a:['a','ā','á','ǎ','à'], e:['e','ē','é','ě','è'], i:['i','ī','í','ǐ','ì'],
+  o:['o','ō','ó','ǒ','ò'], u:['u','ū','ú','ǔ','ù'], 'ü':['ü','ǖ','ǘ','ǚ','ǜ'],
+};
+function convertSyllable(syl){
+  const m = syl.match(/^([a-zA-Zü:]+)([1-5])?$/);
+  if (!m) return syl;
+  let body = m[1].replace(/u:/gi,'ü').replace(/v/gi,'ü');
+  const tone = m[2] ? +m[2] : 5;
+  if (tone === 5) return body;
+  const low = body.toLowerCase();
+  let idx;
+  if (low.includes('a')) idx = low.indexOf('a');
+  else if (low.includes('e')) idx = low.indexOf('e');
+  else if (low.includes('ou')) idx = low.indexOf('o');
+  else { idx=-1; for(let i=body.length-1;i>=0;i--){ if('aeiouü'.includes(low[i])){idx=i;break;} } }
+  if (idx === -1) return body;
+  const marked = TONE_MARKS[body[idx].toLowerCase()][tone];
+  return body.slice(0,idx)+marked+body.slice(idx+1);
+}
+const toPinyin = numbered => numbered.trim().split(/\s+/).map(convertSyllable).join(' ');
+
+/* =====================================================================
+   APP STATE + RENDERING
+   ===================================================================== */
+let deck = Store.read();
+deck.forEach(c => { if (!Array.isArray(c.tags)) c.tags = []; });   // migrate older saves
+deck.forEach(c => { if (c.originalEnglish == null) c.originalEnglish = c.english; });
+let currentResults = [];                                  // entries from the latest lookup
+let pendingTags = {};                                     // tags staged per result index before saving
+function saveDeck(){ Store.write(deck); refreshBadges(); }
+function keyOf(e){ return e.s + '|' + e.p; }              // homograph-safe identity
+function inDeck(e){ return deck.some(c => c.key === keyOf(e)); }
+function cardByKey(k){ return deck.find(c => c.key === k); }
+
+// All distinct tags across the deck, sorted, each with its card count.
+function allTags(){
+  const counts = new Map();
+  for (const c of deck) for (const t of (c.tags||[])) counts.set(t, (counts.get(t)||0)+1);
+  return [...counts.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([tag,n])=>({tag,n}));
+}
+function normTag(s){ return s.trim().replace(/\s+/g,' '); }
+function addTagToCard(card, raw){
+  const t = normTag(raw);
+  if (t && !card.tags.includes(t)) card.tags.push(t);
+}
+
+function show(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  if (name==='deck') renderDeck();
+  if (name==='study') startStudy();
+}
+
+function refreshBadges(){
+  document.getElementById('deck-badge').textContent = deck.length;
+}
+
+/* ---- Look up ---- */
+function doLookup(){
+  const raw = document.getElementById('q').value.trim();
+  const box = document.getElementById('results');
+  if (!raw){ box.innerHTML=''; currentResults=[]; return; }
+  const entries = DICT.get(raw);
+  if (!entries){
+    currentResults = [];
+    const note = FULL_DICT
+      ? "Try a single word rather than a whole phrase, and check the characters are exact."
+      : "The starter set only has ~40 words — load cedict.js for the full 124k dictionary.";
+    box.innerHTML = `<div class="empty"><div class="seal">？</div>
+      <div>No entry for &ldquo;${escapeHtml(raw)}&rdquo;.</div>
+      <div style="margin-top:6px">${note}</div></div>`;
+    return;
+  }
+  currentResults = entries;
+  box.innerHTML = entries.map((e,i)=>renderResult(e,i)).join('');
+}
+
+function renderResult(e, i){
+  const saved = inDeck(e);
+  const variant = e.s !== e.t ? `<div class="variant">traditional 繁: ${e.t}</div>` : '';
+  return `<div class="result" id="result-${i}">
+    <button class="add ${saved?'saved':''}" onclick="addCard(${i}, this)">${saved?'✓':'+'}</button>
+    <div class="hanzi">${e.s}</div>${variant}
+    <div class="pinyin">${toPinyin(e.p)}</div>
+    <ul class="defs">${e.d.map(d=>`<li>${escapeHtml(d)}</li>`).join('')}</ul>
+    ${saved ? '' : `<div class="tag-edit" id="tagedit-${i}">${tagEditorHTML(i)}</div>`}
+  </div>`;
+}
+
+// Tag editor shown on an unsaved result: staged chips + quick-pick of existing tags + add field.
+function tagEditorHTML(i){
+  const staged = pendingTags[i] || [];
+  const existing = allTags().map(t=>t.tag).filter(t=>!staged.includes(t));
+  const stagedChips = staged.map(t =>
+    `<span class="chip on" onclick="unstageTag(${i},'${escAttr(t)}')">${escapeHtml(t)}<span class="x">×</span></span>`
+  ).join('');
+  const pickChips = existing.map(t =>
+    `<span class="chip" onclick="stageTag(${i},'${escAttr(t)}')">${escapeHtml(t)}</span>`
+  ).join('');
+  return `<div class="lbl">Tags (optional)</div>
+    <div class="chips">
+      ${stagedChips}${pickChips}
+      <input class="tag-input" placeholder="+ new tag"
+             onkeydown="if(event.key==='Enter'){stageTagFromInput(${i},this);event.preventDefault();}">
+    </div>`;
+}
+function refreshTagEditor(i){
+  const el = document.getElementById('tagedit-'+i);
+  if (el) el.innerHTML = tagEditorHTML(i);
+}
+function stageTag(i, t){ (pendingTags[i] ||= []).push(t); refreshTagEditor(i); }
+function unstageTag(i, t){ pendingTags[i] = (pendingTags[i]||[]).filter(x=>x!==t); refreshTagEditor(i); }
+function stageTagFromInput(i, input){
+  const t = normTag(input.value);
+  if (t && !(pendingTags[i]||[]).includes(t)) (pendingTags[i] ||= []).push(t);
+  input.value=''; refreshTagEditor(i);
+  const box = document.getElementById('tagedit-'+i);
+  if (box) box.querySelector('.tag-input')?.focus();
+}
+
+function addCard(i, btn){
+  const e = currentResults[i];
+  if (!e || inDeck(e)) return;
+  deck.unshift({
+    id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())+Math.random(),
+    key: keyOf(e),
+    s: e.s, t: e.t,
+    pinyin: toPinyin(e.p),
+    english: e.d.join('; '),
+    originalEnglish: e.d.join('; '),     // preserved dictionary glosses for reference
+    tags: (pendingTags[i] || []).slice(),
+    added: Date.now()
+  });
+  delete pendingTags[i];
+  saveDeck();
+  if (btn){ btn.classList.add('saved'); btn.textContent='✓'; }
+  const te = document.getElementById('tagedit-'+i);   // collapse the editor once saved
+  if (te) te.remove();
+}
+
+/* ---- Deck ---- */
+let deckFilter = new Set();              // selected tag filters (union); empty = show all
+
+function toggleDeckFilter(tag){
+  if (tag === '__all__'){ deckFilter.clear(); }
+  else { deckFilter.has(tag) ? deckFilter.delete(tag) : deckFilter.add(tag); }
+  renderDeck();
+}
+function deckVisible(){
+  if (deckFilter.size === 0) return deck;
+  return deck.filter(c => (c.tags||[]).some(t => deckFilter.has(t)));   // union
+}
+
+function renderDeck(){
+  const list = document.getElementById('deck-list');
+  if (!deck.length){
+    document.getElementById('deck-count').textContent = '';
+    document.getElementById('deck-filter').innerHTML = '';
+    list.innerHTML = `<div class="empty"><div class="seal">空</div>
+      <div>No cards yet.</div><div style="margin-top:6px">Look up a word and tap + to save it here.</div></div>`;
+    return;
+  }
+  // filter bar
+  const tags = allTags();
+  const fb = document.getElementById('deck-filter');
+  if (tags.length){
+    fb.innerHTML =
+      `<span class="fchip ${deckFilter.size===0?'on':''}" onclick="toggleDeckFilter('__all__')">All<span class="n">${deck.length}</span></span>` +
+      tags.map(({tag,n}) =>
+        `<span class="fchip ${deckFilter.has(tag)?'on':''}" onclick="toggleDeckFilter('${escAttr(tag)}')">${escapeHtml(tag)}<span class="n">${n}</span></span>`
+      ).join('');
+  } else {
+    fb.innerHTML = '';
+  }
+
+  const visible = deckVisible();
+  document.getElementById('deck-count').textContent =
+    deckFilter.size
+      ? `${visible.length} of ${deck.length} shown`
+      : `${deck.length} card${deck.length>1?'s':''} saved`;
+
+  list.innerHTML = visible.map(c=>`
+    <div class="deck-card" id="card-${c.id}">
+      <div class="hz">${c.s}</div>
+      <div class="meta"><div class="py">${c.pinyin}</div>
+        <div class="en editable" title="Tap to edit" onclick="editEnglish('${c.id}')">${escapeHtml(c.english)}</div>
+      </div>
+      <button class="del" onclick="delCard('${c.id}')" title="Remove">✕</button>
+      <div class="tag-row chips">
+        ${(c.tags||[]).map(t=>`<span class="chip on" onclick="removeCardTag('${c.id}','${escAttr(t)}')">${escapeHtml(t)}<span class="x">×</span></span>`).join('')}
+        ${allTags().map(x=>x.tag).filter(t=>!(c.tags||[]).includes(t)).map(t=>`<span class="chip" onclick="quickTagCard('${c.id}','${escAttr(t)}')">${escapeHtml(t)}</span>`).join('')}
+        <input class="tag-input" placeholder="+ tag"
+               onkeydown="if(event.key==='Enter'){tagCardFromInput('${c.id}',this);event.preventDefault();}">
+      </div>
+    </div>`).join('');
+}
+function delCard(id){ deck = deck.filter(c=>c.id!==id); saveDeck(); renderDeck(); }
+function removeCardTag(id, t){ const c=cardByKey_byId(id); if(c){ c.tags=c.tags.filter(x=>x!==t); saveDeck(); renderDeck(); } }
+function quickTagCard(id, t){ const c=cardByKey_byId(id); if(c){ addTagToCard(c,t); saveDeck(); renderDeck(); } }
+function tagCardFromInput(id, input){ const c=cardByKey_byId(id); if(c){ addTagToCard(c,input.value); input.value=''; saveDeck(); renderDeck(); } }
+function cardByKey_byId(id){ return deck.find(c=>c.id===id); }
+
+/* ---- Edit a card's English definition (independent of the dictionary) ---- */
+let editingId = null;
+function editEnglish(id){
+  if (editingId === id) return;          // already open
+  editingId = id;
+  const c = cardByKey_byId(id);
+  if (!c) return;
+  const cardEl = document.getElementById('card-'+id);
+  if (!cardEl || cardEl.querySelector('.en-edit')) return;
+  const showOrig = c.originalEnglish && c.originalEnglish !== c.english;
+  const orig = showOrig
+    ? `<div class="orig">Dictionary: ${escapeHtml(c.originalEnglish)} &nbsp;<b onclick="restoreOriginal('${id}')">restore</b></div>`
+    : '';
+  const editor = document.createElement('div');
+  editor.className = 'en-edit';
+  editor.innerHTML = `
+    <div class="lbl">Edit definition</div>
+    <textarea id="enbox-${id}">${escapeHtml(c.english)}</textarea>
+    ${orig}
+    <div class="row">
+      <button class="save" onclick="saveEnglish('${id}')">Save</button>
+      <button class="cancel" onclick="cancelEnglish()">Cancel</button>
+    </div>`;
+  cardEl.appendChild(editor);
+  const ta = document.getElementById('enbox-'+id);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.addEventListener('keydown', e=>{
+    if (e.key==='Enter' && (e.ctrlKey||e.metaKey)){ saveEnglish(id); }
+    if (e.key==='Escape'){ cancelEnglish(); }
+  });
+}
+function saveEnglish(id){
+  const ta = document.getElementById('enbox-'+id);
+  const c = cardByKey_byId(id);
+  if (ta && c){
+    const v = ta.value.trim();
+    if (v) c.english = v;                // ignore empty; keeps a definition always present
+    saveDeck();
+  }
+  editingId = null;
+  renderDeck();
+}
+function cancelEnglish(){ editingId = null; renderDeck(); }
+function restoreOriginal(id){
+  const ta = document.getElementById('enbox-'+id);
+  const c = cardByKey_byId(id);
+  if (ta && c) ta.value = c.originalEnglish;
+  if (ta) ta.focus();
+}
+
+function exportDeck(){
+  if (!deck.length){ alert('Deck is empty.'); return; }
+  // Tab-separated: works as a direct Anki import (Front=hanzi, Back=pinyin + english)
+  const tsv = deck.map(c=>`${c.s}\t${c.pinyin}<br>${c.english}`).join('\n');
+  const blob = new Blob([tsv], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cika-deck.txt';
+  a.click();
+}
+
+/* ---- Study (flip, with selectable prompt side) ---- */
+const STUDY_MODES = {
+  hanzi:   { label:'Hanzi',   zh:'汉', front:'hz', back:['py','en'] },
+  pinyin:  { label:'Pinyin',  zh:'拼', front:'py', back:['hz','en'] },
+  english: { label:'English', zh:'英', front:'en', back:['hz','py'] },
+};
+let studyMode = 'hanzi';
+let studyTags = new Set();               // selected tag subset for study (union); empty = all
+let studyOrder = [], studyPos = 0;
+
+function setStudyMode(m){ studyMode = m; renderStudyView(); }
+function toggleStudyTag(tag){
+  if (tag === '__all__'){ studyTags.clear(); }
+  else { studyTags.has(tag) ? studyTags.delete(tag) : studyTags.add(tag); }
+  startStudy();                          // re-pick the subset and restart the round
+}
+function studySubset(){
+  if (studyTags.size === 0) return deck;
+  return deck.filter(c => (c.tags||[]).some(t => studyTags.has(t)));   // union
+}
+function startStudy(){
+  studyOrder = [...studySubset()].sort(()=>Math.random()-0.5);
+  studyPos = 0;
+  renderStudyView();
+}
+function nextStudy(){ studyPos++; renderStudyView(); }
+
+function fieldHTML(type, c, big){
+  const cls = (big ? 'big-' : 'sm-') + type;
+  const val = type==='hz' ? c.s : type==='py' ? c.pinyin : escapeHtml(c.english);
+  return `<div class="${cls}">${val}</div>`;
+}
+function modeBar(){
+  return `<div class="mode-bar">` + Object.entries(STUDY_MODES).map(([k,m]) =>
+    `<button class="${k===studyMode?'active':''}" onclick="setStudyMode('${k}')"><span class="zh">${m.zh}</span>${m.label}</button>`
+  ).join('') + `</div>`;
+}
+// Tag selector for choosing which subset to study (union). Hidden if no tags exist.
+function studyTagBar(){
+  const tags = allTags();
+  if (!tags.length) return '';
+  return `<div class="filter-bar">
+    <span class="fchip ${studyTags.size===0?'on':''}" onclick="toggleStudyTag('__all__')">All<span class="n">${deck.length}</span></span>` +
+    tags.map(({tag,n}) =>
+      `<span class="fchip ${studyTags.has(tag)?'on':''}" onclick="toggleStudyTag('${escAttr(tag)}')">${escapeHtml(tag)}<span class="n">${n}</span></span>`
+    ).join('') + `</div>`;
+}
+
+function renderStudyView(){
+  const body = document.getElementById('study-body');
+  if (!deck.length){
+    body.innerHTML = `<div class="empty"><div class="seal">習</div>
+      <div>Nothing to study yet.</div>
+      <div style="margin-top:6px">Save some words and they'll appear here.</div></div>`;
+    return;
+  }
+  const tagBar = studyTagBar();
+  // Subset chosen by tags is empty (e.g. a selected tag matches no cards).
+  if (studyOrder.length === 0){
+    body.innerHTML = `<div class="study-wrap">${tagBar}${modeBar()}
+      <div class="empty"><div class="seal">空</div>
+        <div>No cards match the selected tag${studyTags.size>1?'s':''}.</div>
+        <div style="margin-top:6px">Pick different tags, or tap All.</div></div></div>`;
+    return;
+  }
+  if (studyPos >= studyOrder.length){
+    body.innerHTML = `<div class="study-wrap">${tagBar}${modeBar()}
+      <div class="empty"><div class="seal">好</div>
+        <div>Round complete — ${studyOrder.length} card${studyOrder.length>1?'s':''} reviewed.</div>
+        <div style="margin-top:14px"><button class="export" onclick="startStudy()">Shuffle again ↻</button></div>
+      </div></div>`;
+    return;
+  }
+  const c = studyOrder[studyPos];
+  const m = STUDY_MODES[studyMode];
+  const front = fieldHTML(m.front, c, true);
+  const back = m.back.map(t => fieldHTML(t, c, false)).join('');
+  body.innerHTML = `
+    <div class="study-wrap">
+      ${tagBar}
+      ${modeBar()}
+      <div class="progress">${studyPos+1} / ${studyOrder.length}</div>
+      <div class="flip" onclick="this.classList.toggle('flipped')">
+        <div class="flip-inner">
+          <div class="face front"><span class="corner">词</span>${front}<div class="tap">tap to reveal</div></div>
+          <div class="face back"><span class="corner">卡</span>${back}</div>
+        </div>
+      </div>
+      <div class="study-controls">
+        <button class="again" onclick="nextStudy()">Again</button>
+        <button class="good" onclick="nextStudy()">Got it →</button>
+      </div>
+    </div>`;
+}
+
+/* ---- utils ---- */
+function escapeHtml(s){ return s.replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+// Escape a string for safe use inside a single-quoted inline handler argument.
+function escAttr(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+document.getElementById('q').addEventListener('keydown', e=>{ if(e.key==='Enter') doLookup(); });
+refreshBadges();
+
+/* ---- PWA: register the service worker (no-op if unsupported or on file://) ---- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{ /* offline support unavailable */ });
+  });
+}
+</script>
+</body>
+</html>
