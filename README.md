@@ -1,0 +1,2 @@
+# cika
+Chinese flashcards app
