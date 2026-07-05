@@ -180,10 +180,35 @@
   }
   .filter-bar .fchip.on{background:var(--cinnabar);color:#fff;border-color:var(--cinnabar)}
   .filter-bar .fchip .n{opacity:.7;font-size:11px;margin-left:3px}
-  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap}
   .toolbar .count{font-size:14px;color:var(--ink-soft);font-style:italic}
-  .toolbar .export{background:none;border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-family:'Spectral',serif;font-size:13px;color:var(--ink-soft);cursor:pointer}
+  .toolbar .tool-group{display:flex;gap:6px;flex-wrap:wrap}
+  .toolbar .export{background:none;border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-family:'Spectral',serif;font-size:13px;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
   .toolbar .export:hover{border-color:var(--cinnabar);color:var(--cinnabar)}
+  /* toast: brief feedback for backup/restore, doesn't block like alert() */
+  .toast{
+    position:fixed;left:50%;bottom:32px;transform:translateX(-50%);
+    background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:10px;
+    font-family:'Spectral',serif;font-size:14px;box-shadow:0 8px 24px -8px rgba(0,0,0,.35);
+    z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;
+    max-width:80%;text-align:center;
+  }
+  .toast.show{opacity:1}
+  .toast.err{background:var(--cinnabar-deep)}
+  /* restore choice modal */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(33,30,26,.5);z-index:99;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    animation:rise .2s both;
+  }
+  .modal{background:var(--paper);border-radius:16px;padding:24px;max-width:400px;width:100%;box-shadow:0 20px 40px -10px rgba(0,0,0,.4)}
+  .modal h3{font-family:'Noto Serif SC',serif;color:var(--cinnabar);margin-bottom:10px;font-size:20px}
+  .modal p{font-size:14px;line-height:1.5;margin-bottom:16px;color:var(--ink)}
+  .modal .buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .modal button{flex:1;min-width:100px;border:none;border-radius:10px;padding:10px 14px;font-family:'Spectral',serif;font-size:14px;cursor:pointer}
+  .modal .replace{background:var(--cinnabar);color:#fff}
+  .modal .merge{background:var(--jade);color:#fff}
+  .modal .cancel{background:var(--paper-2);color:var(--ink-soft)}
 
   /* ---- STUDY VIEW ---- */
   .study-wrap{display:flex;flex-direction:column;align-items:center;gap:22px;padding-top:8px}
@@ -252,7 +277,11 @@
     <section id="view-deck" class="view">
       <div class="toolbar">
         <span class="count" id="deck-count"></span>
-        <button class="export" onclick="exportDeck()">Export ⤓</button>
+        <div class="tool-group">
+          <button class="export" onclick="copyBackup()">Backup ⧉</button>
+          <button class="export" onclick="pasteBackup()">Restore ⇪</button>
+          <button class="export" onclick="exportDeck()">Anki ⤓</button>
+        </div>
       </div>
       <div class="filter-bar" id="deck-filter"></div>
       <div id="deck-list"></div>
@@ -621,7 +650,7 @@ function restoreOriginal(id){
 }
 
 function exportDeck(){
-  if (!deck.length){ alert('Deck is empty.'); return; }
+  if (!deck.length){ toast('Deck is empty.', true); return; }
   // Tab-separated: works as a direct Anki import (Front=hanzi, Back=pinyin + english)
   const tsv = deck.map(c=>`${c.s}\t${c.pinyin}<br>${c.english}`).join('\n');
   const blob = new Blob([tsv], {type:'text/plain'});
@@ -629,6 +658,123 @@ function exportDeck(){
   a.href = URL.createObjectURL(blob);
   a.download = 'cika-deck.txt';
   a.click();
+}
+
+/* ---- Backup & Restore ----
+   Full JSON of the whole deck: cards, tags, edited definitions, timestamps.
+   Copy to the clipboard so you can paste it into email/Notes/anywhere.
+   Restore reads back from the clipboard (or prompts if that fails). */
+const BACKUP_VERSION = 1;
+
+function toast(msg, isError){
+  const el = document.createElement('div');
+  el.className = 'toast' + (isError ? ' err' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add('show'));
+  setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(), 300); }, 2400);
+}
+
+function backupJSON(){
+  return JSON.stringify({
+    app: 'cika',
+    version: BACKUP_VERSION,
+    exported: new Date().toISOString(),
+    cards: deck,
+  });
+}
+
+async function copyBackup(){
+  if (!deck.length){ toast('Deck is empty — nothing to back up.', true); return; }
+  const text = backupJSON();
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Backup copied — ${deck.length} card${deck.length>1?'s':''}. Paste it somewhere safe.`);
+  } catch {
+    // Fallback: show it in a prompt so you can copy manually.
+    // (Some phone browsers block clipboard writes without a user gesture context.)
+    window.prompt(`Copy this text (${deck.length} cards):`, text);
+  }
+}
+
+async function pasteBackup(){
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch {}
+  if (!text){
+    text = window.prompt('Paste your backup JSON here:') || '';
+  }
+  text = text.trim();
+  if (!text){ return; }   // cancelled
+
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch { toast("That doesn't look like a valid backup.", true); return; }
+
+  // Accept either the wrapped object or a raw cards array (belt-and-suspenders).
+  const incomingCards = Array.isArray(parsed) ? parsed
+                       : Array.isArray(parsed.cards) ? parsed.cards
+                       : null;
+  if (!incomingCards){ toast('Backup format not recognized.', true); return; }
+
+  // Normalize: ensure each incoming card has the fields the app expects.
+  const cleaned = incomingCards
+    .filter(c => c && typeof c.s === 'string' && typeof c.pinyin === 'string')
+    .map(c => ({
+      id: c.id || (crypto.randomUUID?.() ?? String(Date.now())+Math.random()),
+      key: c.key || (c.s + '|' + (c.pinyin || '')),
+      s: c.s,
+      t: c.t || c.s,
+      pinyin: c.pinyin,
+      english: c.english || '',
+      originalEnglish: c.originalEnglish || c.english || '',
+      tags: Array.isArray(c.tags) ? c.tags.filter(t=>typeof t==='string') : [],
+      added: c.added || Date.now(),
+    }));
+  if (!cleaned.length){ toast('Backup contained no valid cards.', true); return; }
+
+  // If current deck is empty, just restore. Otherwise ask replace vs merge.
+  if (!deck.length){
+    deck = cleaned;
+    saveDeck(); renderDeck();
+    toast(`Restored ${cleaned.length} card${cleaned.length>1?'s':''}.`);
+    return;
+  }
+  openRestoreModal(cleaned);
+}
+
+function openRestoreModal(cleaned){
+  const dupeCount = cleaned.filter(c => deck.some(d => d.key === c.key)).length;
+  const newCount = cleaned.length - dupeCount;
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.innerHTML = `<div class="modal">
+    <h3>Restore backup?</h3>
+    <p>The backup has <b>${cleaned.length}</b> card${cleaned.length>1?'s':''}. You currently have <b>${deck.length}</b>.
+    ${dupeCount ? `${dupeCount} appear in both; ${newCount} would be new.` : 'None overlap with your current deck.'}</p>
+    <div class="buttons">
+      <button class="merge" data-act="merge">Merge (+${newCount})</button>
+      <button class="replace" data-act="replace">Replace all</button>
+      <button class="cancel" data-act="cancel">Cancel</button>
+    </div></div>`;
+  bg.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const act = b.dataset.act;
+    bg.remove();
+    if (act === 'cancel') return;
+    if (act === 'replace'){
+      deck = cleaned;
+      saveDeck(); renderDeck();
+      toast(`Replaced deck with ${cleaned.length} card${cleaned.length>1?'s':''}.`);
+    } else if (act === 'merge'){
+      let added = 0;
+      for (const c of cleaned){
+        if (!deck.some(d => d.key === c.key)){ deck.push(c); added++; }
+      }
+      saveDeck(); renderDeck();
+      toast(added ? `Merged in ${added} new card${added>1?'s':''}.` : 'No new cards to add.');
+    }
+  });
+  document.body.appendChild(bg);
 }
 
 /* ---- Study (flip, with selectable prompt side) ---- */
