@@ -278,10 +278,9 @@
       <div class="toolbar">
         <span class="count" id="deck-count"></span>
         <div class="tool-group">
-          <button class="export" onclick="copyBackup()">Backup ⧉</button>
           <button class="export" onclick="downloadBackup()">Save ⤓</button>
-          <button class="export" onclick="pasteBackup()">Restore ⇪</button>
-          <button class="export" onclick="exportDeck()">Anki ⤓</button>
+          <button class="export" onclick="document.getElementById('load-file').click()">Load ⇑</button>
+          <input type="file" id="load-file" accept=".json,application/json,text/plain" style="display:none" onchange="loadBackupFile(event)">
         </div>
       </div>
       <div class="filter-bar" id="deck-filter"></div>
@@ -650,21 +649,9 @@ function restoreOriginal(id){
   if (ta) ta.focus();
 }
 
-function exportDeck(){
-  if (!deck.length){ toast('Deck is empty.', true); return; }
-  // Tab-separated: works as a direct Anki import (Front=hanzi, Back=pinyin + english)
-  const tsv = deck.map(c=>`${c.s}\t${c.pinyin}<br>${c.english}`).join('\n');
-  const blob = new Blob([tsv], {type:'text/plain'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'cika-deck.txt';
-  a.click();
-}
-
 /* ---- Backup & Restore ----
    Full JSON of the whole deck: cards, tags, edited definitions, timestamps.
-   Copy to the clipboard so you can paste it into email/Notes/anywhere.
-   Restore reads back from the clipboard (or prompts if that fails). */
+   Save writes it as a UTF-8 file; Load reads one back. */
 const BACKUP_VERSION = 1;
 
 function toast(msg, isError){
@@ -685,19 +672,6 @@ function backupJSON(){
   });
 }
 
-async function copyBackup(){
-  if (!deck.length){ toast('Deck is empty — nothing to back up.', true); return; }
-  const text = backupJSON();
-  try {
-    await navigator.clipboard.writeText(text);
-    toast(`Backup copied — ${deck.length} card${deck.length>1?'s':''}. Paste it somewhere safe.`);
-  } catch {
-    // Fallback: show it in a prompt so you can copy manually.
-    // (Some phone browsers block clipboard writes without a user gesture context.)
-    window.prompt(`Copy this text (${deck.length} cards):`, text);
-  }
-}
-
 // Save the backup as a downloadable .json file, with a UTF-8 BOM so any viewer
 // (Chrome mobile, notepad-alikes, cloud drive previewers) shows Chinese correctly.
 function downloadBackup(){
@@ -714,26 +688,32 @@ function downloadBackup(){
   toast(`Saved cika-backup-${stamp}.json (${deck.length} card${deck.length>1?'s':''}).`);
 }
 
-async function pasteBackup(){
-  let text = '';
-  try { text = await navigator.clipboard.readText(); } catch {}
-  if (!text){
-    text = window.prompt('Paste your backup JSON here:') || '';
-  }
-  text = text.replace(/^\uFEFF/, '').trim();
-  if (!text){ return; }   // cancelled
+// Handle the file chosen via the hidden <input type="file">.
+function loadBackupFile(evt){
+  const file = evt.target.files && evt.target.files[0];
+  evt.target.value = '';                       // allow picking the same file again later
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => restoreFromText(reader.result || '', file.name);
+  reader.onerror = () => toast("Couldn't read the file.", true);
+  reader.readAsText(file, 'utf-8');            // force UTF-8 decoding
+}
+
+// Shared restore pipeline: parse, validate, then either restore directly (empty deck)
+// or open the merge/replace modal (deck has cards). Used by both paste and file load.
+function restoreFromText(rawText, sourceName){
+  const text = String(rawText || '').replace(/^\uFEFF/, '').trim();
+  if (!text) return;                            // cancelled or empty
 
   let parsed;
   try { parsed = JSON.parse(text); }
   catch { toast("That doesn't look like a valid backup.", true); return; }
 
-  // Accept either the wrapped object or a raw cards array (belt-and-suspenders).
   const incomingCards = Array.isArray(parsed) ? parsed
                        : Array.isArray(parsed.cards) ? parsed.cards
                        : null;
   if (!incomingCards){ toast('Backup format not recognized.', true); return; }
 
-  // Normalize: ensure each incoming card has the fields the app expects.
   const cleaned = incomingCards
     .filter(c => c && typeof c.s === 'string' && typeof c.pinyin === 'string')
     .map(c => ({
@@ -749,11 +729,10 @@ async function pasteBackup(){
     }));
   if (!cleaned.length){ toast('Backup contained no valid cards.', true); return; }
 
-  // If current deck is empty, just restore. Otherwise ask replace vs merge.
   if (!deck.length){
     deck = cleaned;
     saveDeck(); renderDeck();
-    toast(`Restored ${cleaned.length} card${cleaned.length>1?'s':''}.`);
+    toast(`Restored ${cleaned.length} card${cleaned.length>1?'s':''}${sourceName?` from ${sourceName}`:''}.`);
     return;
   }
   openRestoreModal(cleaned);
