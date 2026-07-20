@@ -1,6 +1,6 @@
 /* Cíkǎ service worker — offline support.
    Bump CACHE when you change app files to force a refresh. */
-const CACHE = 'cika-v5';
+const CACHE = 'cika-v6';
 const CORE = [
   './',
   './index.html',

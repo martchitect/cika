@@ -279,6 +279,7 @@
         <span class="count" id="deck-count"></span>
         <div class="tool-group">
           <button class="export" onclick="copyBackup()">Backup ⧉</button>
+          <button class="export" onclick="downloadBackup()">Save ⤓</button>
           <button class="export" onclick="pasteBackup()">Restore ⇪</button>
           <button class="export" onclick="exportDeck()">Anki ⤓</button>
         </div>
@@ -697,13 +698,29 @@ async function copyBackup(){
   }
 }
 
+// Save the backup as a downloadable .json file, with a UTF-8 BOM so any viewer
+// (Chrome mobile, notepad-alikes, cloud drive previewers) shows Chinese correctly.
+function downloadBackup(){
+  if (!deck.length){ toast('Deck is empty — nothing to back up.', true); return; }
+  const text = backupJSON();
+  const bom = '\uFEFF';                                          // UTF-8 BOM
+  const blob = new Blob([bom + text], {type: 'application/json;charset=utf-8'});
+  const stamp = new Date().toISOString().slice(0,10);            // YYYY-MM-DD
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cika-backup-${stamp}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  toast(`Saved cika-backup-${stamp}.json (${deck.length} card${deck.length>1?'s':''}).`);
+}
+
 async function pasteBackup(){
   let text = '';
   try { text = await navigator.clipboard.readText(); } catch {}
   if (!text){
     text = window.prompt('Paste your backup JSON here:') || '';
   }
-  text = text.trim();
+  text = text.replace(/^\uFEFF/, '').trim();
   if (!text){ return; }   // cancelled
 
   let parsed;
